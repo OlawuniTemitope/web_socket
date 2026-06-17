@@ -1,14 +1,15 @@
 import { Router } from "express";
-import { createMatchSchema } from "../validation/matches";
-import { db } from "../db/db";
-import { matches } from "../db/schema";
+import { createMatchSchema } from "../validation/matches.js";
+import { db } from "../db/db.js";
+import { matches } from "../db/schema.js";
 import { ne } from "drizzle-orm";
+import { getMatchStatus } from "../utils/natch-status.js";
 
 export const matchRouter = Router();
 
 const MAX_LIMIT = 100;
 
-matchRouter.get("/", (req, res)=>{
+matchRouter.get("/", async (req, res)=>{
    const parsed = listMatchesQuerySchema.safeParse(req.query);
 
     if (!parsed.success) {
@@ -18,8 +19,7 @@ matchRouter.get("/", (req, res)=>{
     const limit = Math.min(parsed.data.limit ?? 50, MAX_LIMIT);
 
     try {
-        const data = await db
-            .select()
+        const data = await db.select()
             .from(matches)
             .orderBy((desc(matches.createdAt)))
             .limit(limit)
@@ -50,8 +50,13 @@ matchRouter.post('/', async (req, res)=>{
             status: getMatchStatus(startTime, endTime),
         }).returning()
 
+        if(res.app.locals.broadcastMatchCreated){
+            res.app.locals.broadcastMatchCreated(event)
+        }
+
         res.status(201).json({data: event}) 
     } catch (e) {
-        res.status(500).json({error: "Failled to create match.", details: JSON.stringify(e)})
+        console.log(e)
+        res.status(500).json({error: "Failed to create match.", details: JSON.stringify(e)})
     }
 })
