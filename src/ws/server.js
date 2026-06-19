@@ -1,4 +1,5 @@
 import { WebSocket, WebSocketServer } from "ws";
+import { wsArcjet } from "../arcjet";
 
 
 function sendJson(socket, payload){
@@ -16,7 +17,29 @@ function broadcast(wss, payload){
 export function attachWebSocketServer(server){
     const wss = new WebSocketServer({server, path: '/ws', maxPayload: 1024 * 1024})
 
-    wss.on('connection', (soccet)=>{
+    wss.on('connection', async (soccet, req)=>{
+
+           if (wsArcjet) {
+            try {
+                const decision = await wsArcjet.protect(req);
+
+                if (decision.isDenied()) {
+                    if (decision.reason.isRateLimit()) {
+                        socket.write('HTTP/1.1 429 Too Many Requests\r\n\r\n');
+                    } else {
+                        socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+                    }
+                    socket.destroy();
+                    return;
+                }
+            } catch (e) {
+                console.error('WS upgrade protection error', e);
+                socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n');
+                socket.destroy();
+                return;
+            }
+        }
+
 
         socket.isAlive =true
          socket.on('pong', () => { socket.isAlive = true; });
